@@ -23,10 +23,16 @@ class TempHumidityViewModel @Inject constructor(
     var errorMessage by mutableStateOf<String?>(null)
         private set
 
-    var someValue by mutableStateOf("")
+    var hrValue by mutableStateOf("")
         private set
 
-    var humidity by mutableStateOf(0f)
+    var eegValue by mutableStateOf("")
+        private set
+
+    var heartRate by mutableStateOf("")
+        private set
+
+    var battery by mutableStateOf("")
         private set
 
     var connectionState by mutableStateOf<ConnectionState>(ConnectionState.Uninitialized)
@@ -37,7 +43,10 @@ class TempHumidityViewModel @Inject constructor(
                 when (result) {
                     is Resource.Success -> {
                         connectionState = result.data.connectionState
-                        someValue = result.data.someValue
+                        hrValue = result.data.hrValue
+                        eegValue = result.data.eegValue
+                        heartRate = result.data.heartRate
+                        battery = result.data.batteryLevel
                     }
 
                     is Resource.Loading -> {

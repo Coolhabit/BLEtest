@@ -13,7 +13,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.util.Log
 import com.coolhabit.bluetoothtestapp.data.ConnectionState
-import com.coolhabit.bluetoothtestapp.data.TempHumidityResult
+import com.coolhabit.bluetoothtestapp.data.GameBandResult
 import com.coolhabit.bluetoothtestapp.data.TemperatureAndHumidityReceiveManager
 import com.coolhabit.bluetoothtestapp.util.Resource
 import kotlinx.coroutines.CoroutineScope
@@ -31,12 +31,20 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
 
     private val DEVICE_NAME = "Game Band"
 
-    val MADDCOG_HR_SERVICE = "ca704ada-4d05-89d3-25a4-92b80d7b932a"
-    val MADDCOG_HR_CHAR = "dab33654-9a44-4107-bb28-3abc12f52688"
+//    val MADDCOG_HRV_SERVICE = "ca704ada-4d05-89d3-25a4-92b80d7b932a"
+    val MADDCOG_HRV_SERVICE = "5000df9c-9a41-47ac-a82a-7c301d509580"
+    val MADDCOG_HRV_CHAR = "dab33654-9a44-4107-bb28-3abc12f52688"
+
     val MADDCOG_EEG_SERVICE = "b62ea99a-5371-4cab-9ab9-7f338623b1a3"
     val MADDCOG_EEG_CHAR = "1688c50a-1344-4358-a43c-8bed435a11c7"
 
-    override val data: MutableSharedFlow<Resource<TempHumidityResult>> = MutableSharedFlow()
+    val MADDCOG_HEARTRATE_SERVICE = "0000180d-0000-1000-8000-00805f9b34fb"
+    val MADDCOG_HEARTRATE_CHAR = "00002a37-0000-1000-8000-00805f9b34fb"
+
+    val MADDCOG_BATTERY_SERVICE = "0000180f-0000-1000-8000-00805f9b34fb"
+    val MADDCOG_BATTERY_CHAR = "00002a19-0000-1000-8000-00805f9b34fb"
+
+    override val data: MutableSharedFlow<Resource<GameBandResult>> = MutableSharedFlow()
 
     private val bleScanner by lazy {
         bluetoothAdapter.bluetoothLeScanner
@@ -84,7 +92,10 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                 coroutineScope.launch {
                     data.emit(
                         Resource.Success(
-                            data = TempHumidityResult(
+                            data = GameBandResult(
+                                "waiting value",
+                                "waiting value",
+                                "waiting value",
                                 "waiting value",
                                 ConnectionState.Disconnected
                             )
@@ -119,15 +130,23 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
         }
 
         override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
-            val characteristic =
-                findCharacteristic(MADDCOG_EEG_SERVICE, MADDCOG_EEG_CHAR)
-            if (characteristic == null) {
-                coroutineScope.launch {
-                    data.emit(Resource.Error(errorMessage = "Could not find eeg publisher"))
+            val characteristicsList = listOf(
+                findCharacteristic(MADDCOG_EEG_SERVICE, MADDCOG_EEG_CHAR),
+                findCharacteristic(MADDCOG_HRV_SERVICE, MADDCOG_HRV_CHAR),
+                findCharacteristic(MADDCOG_HEARTRATE_SERVICE, MADDCOG_HEARTRATE_CHAR),
+                findCharacteristic(MADDCOG_BATTERY_SERVICE, MADDCOG_BATTERY_CHAR),
+            )
+            characteristicsList.forEach { characteristic ->
+                if (characteristic == null) {
+                    coroutineScope.launch {
+                        data.emit(Resource.Error(errorMessage = "Could not find eeg publisher"))
+                    }
+                    return
                 }
-                return
             }
-            enableNotification(characteristic)
+            characteristicsList.forEach { char ->
+                char?.let { it -> enableNotification(it) }
+            }
         }
 
         override fun onCharacteristicChanged(
@@ -139,17 +158,65 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                 when (this.uuid) {
                     UUID.fromString(MADDCOG_EEG_CHAR) -> {
                         //XX XX XX XX XX XX
-                        val multiplicator = if (value.first().toInt() > 0) -1 else 1
-                        val temperature = value[1].toInt() + value[2].toInt() / 10f
-                        val humidity = value[4].toInt() + value[5].toInt() / 10f
-                        val someValue = value.decodeToString()
-                        val tempHumidityResult = TempHumidityResult(
-                            someValue,
-                            ConnectionState.Connected
+                        val eegValue = value.toString()
+                        val gameBandResult = GameBandResult(
+                            eegValue = eegValue,
+                            hrValue = "",
+                            heartRate = "",
+                            batteryLevel = "",
+                            connectionState = ConnectionState.Connected
                         )
                         coroutineScope.launch {
                             data.emit(
-                                Resource.Success(data = tempHumidityResult)
+                                Resource.Success(data = gameBandResult)
+                            )
+                        }
+                    }
+                    UUID.fromString(MADDCOG_HRV_CHAR) -> {
+                        //XX XX XX XX XX XX
+                        val hrValue = value.toString()
+                        val gameBandResult = GameBandResult(
+                            eegValue = "",
+                            hrValue = hrValue,
+                            heartRate = "",
+                            batteryLevel = "",
+                            connectionState = ConnectionState.Connected
+                        )
+                        coroutineScope.launch {
+                            data.emit(
+                                Resource.Success(data = gameBandResult)
+                            )
+                        }
+                    }
+                    UUID.fromString(MADDCOG_HEARTRATE_CHAR) -> {
+                        //XX XX XX XX XX XX
+                        val heartRate = value.toString()
+                        val gameBandResult = GameBandResult(
+                            eegValue = "",
+                            hrValue = "",
+                            heartRate = heartRate,
+                            batteryLevel = "",
+                            connectionState = ConnectionState.Connected
+                        )
+                        coroutineScope.launch {
+                            data.emit(
+                                Resource.Success(data = gameBandResult)
+                            )
+                        }
+                    }
+                    UUID.fromString(MADDCOG_BATTERY_CHAR) -> {
+                        //XX XX XX XX XX XX
+                        val batteryLevel = value.toString()
+                        val gameBandResult = GameBandResult(
+                            eegValue = "",
+                            hrValue = "",
+                            heartRate = "",
+                            batteryLevel = batteryLevel,
+                            connectionState = ConnectionState.Connected
+                        )
+                        coroutineScope.launch {
+                            data.emit(
+                                Resource.Success(data = gameBandResult)
                             )
                         }
                     }
@@ -205,9 +272,16 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
 
     override fun closeConnection() {
         bleScanner.stopScan(scanCallback)
-        val characteristic = findCharacteristic(MADDCOG_EEG_SERVICE, MADDCOG_EEG_CHAR)
-        if (characteristic != null) {
-            disconnectCharacteristic(characteristic)
+        val characteristicsList = listOf(
+            findCharacteristic(MADDCOG_EEG_SERVICE, MADDCOG_EEG_CHAR),
+            findCharacteristic(MADDCOG_HRV_SERVICE, MADDCOG_HRV_CHAR),
+            findCharacteristic(MADDCOG_HEARTRATE_SERVICE, MADDCOG_HEARTRATE_CHAR),
+            findCharacteristic(MADDCOG_BATTERY_SERVICE, MADDCOG_BATTERY_CHAR),
+        )
+        characteristicsList.forEach { characteristic ->
+            if (characteristic != null) {
+                disconnectCharacteristic(characteristic)
+            }
         }
         gatt?.close()
     }

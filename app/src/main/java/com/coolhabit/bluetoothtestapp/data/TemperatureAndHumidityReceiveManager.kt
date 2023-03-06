@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 
 interface TemperatureAndHumidityReceiveManager {
 
-    val data: MutableSharedFlow<Resource<TempHumidityResult>>
+    val data: MutableSharedFlow<Resource<GameBandResult>>
     fun reconnect()
     fun disconnect()
     fun startReceiving()

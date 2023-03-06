@@ -151,7 +151,19 @@ fun TemperatureHumidityScreen(
                     verticalArrangement = Arrangement.Center
                 ){
                     Text(
-                        text = "HR value: ${viewModel.someValue}",
+                        text = "HR value: ${viewModel.hrValue}",
+                        style = MaterialTheme.typography.h6
+                    )
+                    Text(
+                        text = "EEG value: ${viewModel.eegValue}",
+                        style = MaterialTheme.typography.h6
+                    )
+                    Text(
+                        text = "Heart-rate: ${viewModel.heartRate}",
+                        style = MaterialTheme.typography.h6
+                    )
+                    Text(
+                        text = "Battery: ${viewModel.battery}",
                         style = MaterialTheme.typography.h6
                     )
                 }
