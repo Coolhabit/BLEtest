@@ -1,8 +1,10 @@
 package com.coolhabit.bluetoothtestapp.presentation
 
 import android.bluetooth.BluetoothAdapter
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -165,6 +167,18 @@ fun TemperatureHumidityScreen(
                     Text(
                         text = "Battery: ${viewModel.battery}",
                         style = MaterialTheme.typography.h6
+                    )
+                    Text(
+                        text = "Unrecognized: ${viewModel.unrecognized}",
+                        style = MaterialTheme.typography.h6
+                    )
+                    Text(
+                        text = "Click to print table",
+                        style = MaterialTheme.typography.h6,
+                        modifier = Modifier.clickable {
+                            println(viewModel.gettMap)
+                            Log.i("TABLE", viewModel.gettMap.toString())
+                        }
                     )
                 }
             }else if(bleConnectionState == ConnectionState.Disconnected){

@@ -5,5 +5,7 @@ data class GameBandResult(
     val eegValue: String,
     val heartRate: String,
     val batteryLevel: String,
+    val unrecognized: String,
+    val gattTable: Map<String, List<String>>,
     val connectionState: ConnectionState
 )

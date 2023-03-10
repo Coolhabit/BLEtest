@@ -35,6 +35,12 @@ class TempHumidityViewModel @Inject constructor(
     var battery by mutableStateOf("")
         private set
 
+    var unrecognized by mutableStateOf("")
+        private set
+
+    var gettMap by mutableStateOf(emptyMap<String, List<String>>())
+        private set
+
     var connectionState by mutableStateOf<ConnectionState>(ConnectionState.Uninitialized)
 
     private fun subscribeToChanges() {
@@ -47,6 +53,8 @@ class TempHumidityViewModel @Inject constructor(
                         eegValue = result.data.eegValue
                         heartRate = result.data.heartRate
                         battery = result.data.batteryLevel
+                        unrecognized = result.data.unrecognized
+                        gettMap = result.data.gattTable
                     }
 
                     is Resource.Loading -> {

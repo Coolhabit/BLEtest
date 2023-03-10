@@ -36,6 +36,14 @@ fun BluetoothGatt.printGattTable() {
     }
 }
 
+fun BluetoothGatt.getGattMap(): MutableMap<String, List<String>> {
+    val gattMap = mutableMapOf<String, List<String>>()
+    services.forEach { service ->
+        gattMap[service.uuid.toString()] = service.characteristics.map { it.uuid.toString() }
+    }
+    return gattMap
+}
+
 fun BluetoothGattCharacteristic.printProperties(): String = mutableListOf<String>().apply {
     if (isReadable()) add("READABLE")
     if (isWritable()) add("WRITABLE")

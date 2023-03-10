@@ -10,6 +10,7 @@ import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
+import android.content.ContentValues.TAG
 import android.content.Context
 import android.util.Log
 import com.coolhabit.bluetoothtestapp.data.ConnectionState
@@ -100,6 +101,8 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                                 "waiting value",
                                 "waiting value",
                                 "waiting value",
+                                unrecognized = "waiting value",
+                                gattTable = gatt.getGattMap(),
                                 ConnectionState.Disconnected
                             )
                         )
@@ -129,30 +132,37 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                     data.emit(Resource.Loading(message = "Adjusting MTU space..."))
                 }
                 gatt.requestMtu(517)
-            }
-        }
-
-        override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
-            val characteristicsList = listOf(
-                findCharacteristic(MADDCOG_EEG_SERVICE, MADDCOG_EEG_CHAR),
-                findCharacteristic(MADDCOG_HRV_SERVICE, MADDCOG_HRV_CHAR),
-                findCharacteristic(MADDCOG_HEARTRATE_SERVICE, MADDCOG_HEARTRATE_CHAR),
-                findCharacteristic(MADDCOG_BATTERY_SERVICE, MADDCOG_BATTERY_CHAR),
-            )
-            characteristicsList.forEach { characteristic ->
-                if (characteristic == null) {
-                    coroutineScope.launch {
-                        data.emit(Resource.Error(errorMessage = "Could not find eeg publisher"))
+                val allCharacteristicsList = mutableListOf<BluetoothGattCharacteristic>()
+                gatt.services.forEach { service ->
+                    service.characteristics.forEach { char ->
+                        allCharacteristicsList.add(char)
                     }
-                    return
                 }
-            }
-            characteristicsList.forEach { char ->
-                char?.let { it ->
+                allCharacteristicsList.forEach {
                     enableNotification(it)
                 }
             }
         }
+
+//        override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
+//            val characteristicsList = listOf(
+//                findCharacteristic(MADDCOG_EEG_SERVICE, MADDCOG_EEG_CHAR),
+//                findCharacteristic(MADDCOG_HRV_SERVICE, MADDCOG_HRV_CHAR),
+//                findCharacteristic(MADDCOG_HEARTRATE_SERVICE, MADDCOG_HEARTRATE_CHAR),
+//                findCharacteristic(MADDCOG_BATTERY_SERVICE, MADDCOG_BATTERY_CHAR),
+//            )
+//            val filteredList = characteristicsList.filterNotNull()
+//            if (filteredList.isEmpty()) {
+//                coroutineScope.launch {
+//                    data.emit(Resource.Error(errorMessage = "Could not find characteristics"))
+//                }
+//            }
+//            filteredList.forEach { char ->
+//                char.let { it ->
+//                    enableNotification(it)
+//                }
+//            }
+//        }
 
         override fun onCharacteristicChanged(
             gatt: BluetoothGatt,
@@ -164,32 +174,17 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
             )
             with(characteristic) {
                 when (this.uuid) {
-                    UUID.fromString(MADDCOG_EEG_CHAR) -> {
-                        //XX XX XX XX XX XX
-                        val eegValue = value.toHexString()
-                        Log.d("MADDCOG_EEG", eegValue)
-                        val gameBandResult = GameBandResult(
-                            eegValue = eegValue,
-                            hrValue = "",
-                            heartRate = "",
-                            batteryLevel = "",
-                            connectionState = ConnectionState.Connected
-                        )
-                        coroutineScope.launch {
-                            data.emit(
-                                Resource.Success(data = gameBandResult)
-                            )
-                        }
-                    }
                     UUID.fromString(MADDCOG_HRV_CHAR) -> {
                         //XX XX XX XX XX XX
-                        val hrValue = value.toHexString()
-                        Log.d("MADDCOG_HRV", hrValue)
+                        val hrValue = extractHeartRate(this)
+                        Log.d("MADDCOG_HRV", hrValue.toString())
                         val gameBandResult = GameBandResult(
                             eegValue = "",
-                            hrValue = hrValue,
+                            hrValue = hrValue.toString(),
                             heartRate = "",
                             batteryLevel = "",
+                            unrecognized = "",
+                            gattTable = gatt.getGattMap(),
                             connectionState = ConnectionState.Connected
                         )
                         coroutineScope.launch {
@@ -200,13 +195,34 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                     }
                     UUID.fromString(MADDCOG_HEARTRATE_CHAR) -> {
                         //XX XX XX XX XX XX
-                        val heartRate = value.toHexString()
-                        Log.d("MADDCOG_HEARTRATE", heartRate)
+                        val heartRate = extractHeartRate(this)
+                        Log.d("MADDCOG_HEARTRATE", heartRate.toString())
                         val gameBandResult = GameBandResult(
                             eegValue = "",
                             hrValue = "",
-                            heartRate = heartRate,
+                            heartRate = heartRate.toString(),
                             batteryLevel = "",
+                            unrecognized = "",
+                            gattTable = gatt.getGattMap(),
+                            connectionState = ConnectionState.Connected
+                        )
+                        coroutineScope.launch {
+                            data.emit(
+                                Resource.Success(data = gameBandResult)
+                            )
+                        }
+                    }
+                    UUID.fromString(MADDCOG_EEG_CHAR) -> {
+                        //XX XX XX XX XX XX
+                        val eegValue = value.toHexString()
+                        Log.d("MADDCOG_EEG", eegValue)
+                        val gameBandResult = GameBandResult(
+                            eegValue = eegValue,
+                            hrValue = "",
+                            heartRate = "",
+                            batteryLevel = "",
+                            unrecognized = "",
+                            gattTable = gatt.getGattMap(),
                             connectionState = ConnectionState.Connected
                         )
                         coroutineScope.launch {
@@ -224,6 +240,8 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                             hrValue = "",
                             heartRate = "",
                             batteryLevel = batteryLevel,
+                            unrecognized = "",
+                            gattTable = gatt.getGattMap(),
                             connectionState = ConnectionState.Connected
                         )
                         coroutineScope.launch {
@@ -232,7 +250,23 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                             )
                         }
                     }
-                    else -> Unit
+                    else -> {
+                        val unrecog = value.toHexString()
+                        val gameBandResult = GameBandResult(
+                            eegValue = "",
+                            hrValue = "",
+                            heartRate = "",
+                            batteryLevel = "",
+                            unrecognized = unrecog,
+                            gattTable = gatt.getGattMap(),
+                            connectionState = ConnectionState.Connected
+                        )
+                        coroutineScope.launch {
+                            data.emit(
+                                Resource.Success(data = gameBandResult)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -246,6 +280,25 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                 when (status) {
                     BluetoothGatt.GATT_SUCCESS -> {
                         when (this.uuid) {
+                            UUID.fromString(MADDCOG_HRV_CHAR) -> {
+                                //XX XX XX XX XX XX
+                                val hrValue = extractHeartRate(this)
+                                Log.d("MADDCOG_HRV", hrValue.toString())
+                                val gameBandResult = GameBandResult(
+                                    eegValue = "",
+                                    hrValue = hrValue.toString(),
+                                    heartRate = "",
+                                    batteryLevel = "",
+                                    unrecognized = "",
+                                    gattTable = gatt.getGattMap(),
+                                    connectionState = ConnectionState.Connected
+                                )
+                                coroutineScope.launch {
+                                    data.emit(
+                                        Resource.Success(data = gameBandResult)
+                                    )
+                                }
+                            }
                             UUID.fromString(MADDCOG_BATTERY_CHAR) -> {
                                 //XX XX XX XX XX XX
                                 val batteryLevel = value.contentToString()
@@ -255,6 +308,8 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                                     hrValue = "",
                                     heartRate = "",
                                     batteryLevel = batteryLevel,
+                                    unrecognized = "",
+                                    gattTable = gatt.getGattMap(),
                                     connectionState = ConnectionState.Connected
                                 )
                                 coroutineScope.launch {
@@ -263,7 +318,42 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                                     )
                                 }
                             }
-                            else -> Unit
+                            UUID.fromString(MADDCOG_HEARTRATE_CHAR) -> {
+                                //XX XX XX XX XX XX
+                                val heartRate = extractHeartRate(this)
+                                Log.d("MADDCOG_HEARTRATE", heartRate.toString())
+                                val gameBandResult = GameBandResult(
+                                    eegValue = "",
+                                    hrValue = "",
+                                    heartRate = heartRate.toString(),
+                                    batteryLevel = "",
+                                    unrecognized = "",
+                                    gattTable = gatt.getGattMap(),
+                                    connectionState = ConnectionState.Connected
+                                )
+                                coroutineScope.launch {
+                                    data.emit(
+                                        Resource.Success(data = gameBandResult)
+                                    )
+                                }
+                            }
+                            else -> {
+                                val unrecog = value.toHexString()
+                                val gameBandResult = GameBandResult(
+                                    eegValue = "",
+                                    hrValue = "",
+                                    heartRate = "",
+                                    batteryLevel = "",
+                                    unrecognized = unrecog,
+                                    gattTable = gatt.getGattMap(),
+                                    connectionState = ConnectionState.Connected
+                                )
+                                coroutineScope.launch {
+                                    data.emit(
+                                        Resource.Success(data = gameBandResult)
+                                    )
+                                }
+                            }
                         }
                         Log.i("BluetoothGattCallback", "Read characteristic $uuid:\n${value.toHexString()}")
                     }
@@ -278,7 +368,7 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
         }
 
         override fun onDescriptorRead(
-            gatt: BluetoothGatt?,
+            gatt: BluetoothGatt,
             descriptor: BluetoothGattDescriptor,
             status: Int
         ) {
@@ -293,6 +383,8 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                             hrValue = hrValue,
                             heartRate = "",
                             batteryLevel = "",
+                            unrecognized = "",
+                            gattTable = gatt.getGattMap(),
                             connectionState = ConnectionState.Connected
                         )
                         coroutineScope.launch {
@@ -310,6 +402,8 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                             hrValue = "",
                             heartRate = heartRate,
                             batteryLevel = "",
+                            unrecognized = "",
+                            gattTable = gatt.getGattMap(),
                             connectionState = ConnectionState.Connected
                         )
                         coroutineScope.launch {
@@ -318,7 +412,23 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                             )
                         }
                     }
-                    else -> Unit
+                    else -> {
+                        val unrecog = value.toHexString()
+                        val gameBandResult = GameBandResult(
+                            eegValue = "",
+                            hrValue = "",
+                            heartRate = "",
+                            batteryLevel = "",
+                            unrecognized = unrecog,
+                            gattTable = gatt.getGattMap(),
+                            connectionState = ConnectionState.Connected
+                        )
+                        coroutineScope.launch {
+                            data.emit(
+                                Resource.Success(data = gameBandResult)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -402,5 +512,24 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
             descriptor.value = payload
             gatt.writeDescriptor(descriptor)
         } ?: error("Not connected to a BLE device!")
+    }
+
+    private fun extractHeartRate(
+        characteristic: BluetoothGattCharacteristic
+    ): Double {
+        val flag = characteristic.properties
+        Log.d(TAG, "Heart rate flag: $flag")
+        var format = -1
+        // Heart rate bit number format
+        if (flag and 0x01 != 0) {
+            format = BluetoothGattCharacteristic.FORMAT_UINT16
+            Log.d(TAG, "Heart rate format UINT16.")
+        } else {
+            format = BluetoothGattCharacteristic.FORMAT_UINT8
+            Log.d(TAG, "Heart rate format UINT8.")
+        }
+        val heartRate = characteristic.getIntValue(format, 1)
+        Log.d(TAG, String.format("Received heart rate: %d", heartRate))
+        return heartRate.toDouble()
     }
 }
