@@ -30,7 +30,7 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
     private val context: Context,
 ) : TemperatureAndHumidityReceiveManager {
 
-    var count = 3
+    var count = 0
     private val DEVICE_NAME = "Game Band"
 
     var savedBattery = "0.0"
@@ -158,13 +158,13 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                     data.emit(Resource.Error(errorMessage = "Could not find characteristics"))
                 }
             }
+            setEegNotifications(gatt)
 
-            findCharacteristic(MADDCOG_HEARTRATE_SERVICE, MADDCOG_HEARTRATE_CHAR)?.let {
-                enableNotification(
-                    it
-                )
-            }
-
+//            findCharacteristic(MADDCOG_HEARTRATE_SERVICE, MADDCOG_HEARTRATE_CHAR)?.let {
+//                enableNotification(
+//                    it
+//                )
+//            }
 //            filteredList.forEach { char ->
 //                char.let { it ->
 //                    enableNotification(it)
@@ -176,10 +176,6 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
             gatt: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic
         ) {
-            gatt.readCharacteristic(
-                gatt.getService(UUID.fromString(MADDCOG_BATTERY_SERVICE))
-                    .getCharacteristic(UUID.fromString(MADDCOG_BATTERY_CHAR))
-            )
             with(characteristic) {
                 when (this.uuid) {
                     UUID.fromString(MADDCOG_HRV_CHAR) -> {
@@ -191,7 +187,7 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                             eegValue = savedEeg.toString(),
                             hrValue = hrValue.toString(),
                             heartRate = savedHeartRate.toString(),
-                            batteryLevel = savedBattery.toString(),
+                            batteryLevel = savedBattery,
                             unrecognized = unrecognized,
                             gattTable = gatt.getGattMap(),
                             connectionState = ConnectionState.Connected
@@ -208,10 +204,10 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
                         savedHeartRate = heartRate
                         Log.d("MADDCOG_HEARTRATE", heartRate.toString())
                         val gameBandResult = GameBandResult(
-                            eegValue = savedEeg.toString(),
+                            eegValue = savedEeg,
                             hrValue = savedHrv.toString(),
                             heartRate = heartRate.toString(),
-                            batteryLevel = savedBattery.toString(),
+                            batteryLevel = savedBattery,
                             unrecognized = unrecognized,
                             gattTable = gatt.getGattMap(),
                             connectionState = ConnectionState.Connected
@@ -325,25 +321,38 @@ class TemperatureAndHumidityBLEReceiveManager @Inject constructor(
         }
 
         override fun onDescriptorWrite(
-            gatt: BluetoothGatt?,
+            gatt: BluetoothGatt,
             descriptor: BluetoothGattDescriptor?,
             status: Int
         ) {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                when (count) {
-                    1 -> {
-                        findCharacteristic(MADDCOG_EEG_SERVICE, MADDCOG_EEG_CHAR)?.let {
-                            enableNotification(it)
-                        }
-                    }
-                    0 -> enableNotification(chars[0])
-                }
+            super.onDescriptorWrite(gatt, descriptor, status)
+            if (count == 0) {
+                count = 1
+                setHrvNotifications(gatt)
             }
         }
     }
 
-    private fun setEegNotifications() {
+    private fun setEegNotifications(gatt: BluetoothGatt) {
+        val eegChar = gatt.getService(UUID.fromString(MADDCOG_EEG_SERVICE)).getCharacteristic(UUID.fromString(MADDCOG_EEG_CHAR))
+        gatt.setCharacteristicNotification(eegChar, true)
+        eegChar.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        val descriptor = eegChar.getDescriptor(DEFAULT_DESCRIPTOR)
+        if (descriptor != null) {
+            descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            gatt.writeDescriptor(descriptor)
+        }
+    }
 
+    private fun setHrvNotifications(gatt: BluetoothGatt) {
+        val eegChar = gatt.getService(UUID.fromString(MADDCOG_HRV_SERVICE)).getCharacteristic(UUID.fromString(MADDCOG_HRV_CHAR))
+        gatt.setCharacteristicNotification(eegChar, true)
+        eegChar.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        val descriptor = eegChar.getDescriptor(DEFAULT_DESCRIPTOR)
+        if (descriptor != null) {
+            descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            gatt.writeDescriptor(descriptor)
+        }
     }
 
     private fun enableNotification(characteristic: BluetoothGattCharacteristic) {
